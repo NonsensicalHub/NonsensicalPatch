@@ -1,0 +1,42 @@
+﻿<Window x:Class="NonsensicalPatcher.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:NonsensicalPatcher"
+        mc:Ignorable="d"
+        Title="MainWindow" Height="500" Width="800">
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition/>
+        </Grid.ColumnDefinitions>
+        <Label Content="旧版本文件根目录" HorizontalAlignment="Left" Margin="48,28,0,0" VerticalAlignment="Top"/>
+        <TextBox x:Name="OldRootPathBox" Margin="223,27,55,0" TextWrapping="Wrap" VerticalAlignment="Top" TextChanged="OldRootPath_TextChanged"/>
+        <Button Content="选择文件夹" Margin="154,26,0,0" VerticalAlignment="Top" RenderTransformOrigin="0.268,0.091" Click="OldRootSelect_ButtonClick" HorizontalAlignment="Left" Width="64"/>
+        <Label Content="新版本文件根目录" HorizontalAlignment="Left" Margin="48,50,0,0" VerticalAlignment="Top"/>
+        <TextBox x:Name="NewRootPathBox" Margin="223,54,55,0" TextWrapping="Wrap" VerticalAlignment="Top" TextChanged="NewRootPath_TextChanged"/>
+        <Button Content="选择文件夹" Margin="154,53,0,0" VerticalAlignment="Top" RenderTransformOrigin="0.268,0.091" Click="NewRootSelect_ButtonClick" HorizontalAlignment="Left" Width="64"/>
+        <Label Content="补丁导出路径" HorizontalAlignment="Left" Margin="72,74,0,0" VerticalAlignment="Top"/>
+        <TextBox x:Name="ExportPathBox" Margin="223,78,55,0" TextWrapping="Wrap" VerticalAlignment="Top" TextChanged="ExportPath_TextChanged"/>
+        <Button Content="选择文件" Margin="154,77,0,0" VerticalAlignment="Top" RenderTransformOrigin="0.268,0.091" Click="ExportPathSelect_ButtonClick" HorizontalAlignment="Left" Width="52"/>
+        <Label Content="应用补丁文件根目录" HorizontalAlignment="Left" Margin="36,98,0,0" VerticalAlignment="Top"/>
+        <TextBox x:Name="PatchTargetRootPathTextBox" Margin="223,102,55,0" TextWrapping="Wrap" VerticalAlignment="Top" TextChanged="PatchTargetRootPath_TextChanged"/>
+        <Button Content="选择文件夹" Margin="154,101,0,0" VerticalAlignment="Top" RenderTransformOrigin="0.268,0.091" Click="PatchTargetRootPathSelect_ButtonClick" HorizontalAlignment="Left" Width="64"/>
+
+
+        <ScrollViewer x:Name="MessageTextScrollViewer" Margin="36,195,36,53">
+            <RichTextBox x:Name="MessageTextBox" Height="Auto" IsReadOnly="True" TextChanged="MessageTextBox_TextChanged">
+                <FlowDocument/>
+            </RichTextBox>
+        </ScrollViewer>
+        <Button Content="构建补丁" HorizontalAlignment="Left" Margin="384,136,0,0" VerticalAlignment="Top" RenderTransformOrigin="0.488,0.473" Click="Build_ButtonClick"/>
+        <Button Content="应用补丁" HorizontalAlignment="Left" Margin="462,136,0,0" VerticalAlignment="Top" Click="Patch_ButtonClick"/>
+        <Button Content="读取补丁" HorizontalAlignment="Left" Margin="546,136,0,0" VerticalAlignment="Top" Click="PatchRead_ButtonClick"/>
+
+        <ComboBox x:Name="CompressTypeBox" HorizontalAlignment="Left" Margin="233,134,0,0" VerticalAlignment="Top" Width="120" SelectionChanged="ComboBox_SelectionChanged">
+            <ComboBoxItem Content="Gzip"></ComboBoxItem>
+            <ComboBoxItem Content="Bzip2"></ComboBoxItem>
+        </ComboBox>
+        <Button Content="清空" HorizontalAlignment="Center" Margin="0,0,0,12" Click="ClearButton_Click" Height="19" VerticalAlignment="Bottom"/>
+    </Grid>
+</Window>
