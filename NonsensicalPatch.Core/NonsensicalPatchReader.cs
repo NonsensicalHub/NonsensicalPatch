@@ -5,8 +5,8 @@ using System.Text;
 
 namespace NonsensicalPatch.Core;
 
-/* Head:
- * Value            Length
+/* Value            Length
+ * Head:
  * magic            16
  * patchVersion     1
  * compressType     1
