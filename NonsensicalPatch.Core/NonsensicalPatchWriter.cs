@@ -40,11 +40,11 @@ public class NonsensicalPatchWriter
     private int _newRootPathLength;
     private CompressType _compressType;
 
-    private byte[] _removeFile = new byte[] { 0 };
-    private byte[] _createFile = new byte[] { 1 };
-    private byte[] _modifyFile = new byte[] { 2 };
-    private byte[] _removeFolder = new byte[] { 3 };
-    private byte[] _createFolder = new byte[] { 4 };
+    private byte[] _removeFile = [0];
+    private byte[] _createFile = [1];
+    private byte[] _modifyFile = [2];
+    private byte[] _removeFolder = [3];
+    private byte[] _createFolder = [4];
 
     private int _runningCount = 0;
     private int _blockCount = 0;
@@ -114,6 +114,10 @@ public class NonsensicalPatchWriter
         }
 
         _md5.TransformFinalBlock([], 0, 0);
+        if (_md5.Hash == null)
+        {
+            throw new Exception("md5生成失败");
+        }
         byte[] md5Hash = _md5.Hash;
         var endPos = _output.Position;
         _output.Position = startPos + 18;
@@ -174,8 +178,8 @@ public class NonsensicalPatchWriter
             if (newFileNames.Contains(olfFiles[i].Name))
             {
                 int j = newFileNames.IndexOf(olfFiles[i].Name);
-                var oldFile= olfFiles[i];
-                var newFile= newFiles[j];
+                var oldFile = olfFiles[i];
+                var newFile = newFiles[j];
                 _runningCount++;
                 Thread thread = new Thread(() => CompareFile(oldFile, newFile));
                 thread.Start();

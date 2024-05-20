@@ -29,7 +29,7 @@ public class NonsensicalPatchReader
 {
     public List<string> ErrorMessage = new List<string>();
     public bool HasError => ErrorMessage.Count != 0;
-    public PatchInfo? PatchInfo { get; private set; }
+    public PatchInfo PatchInfo { get; private set; }
 
     private readonly object _errorMessageLock = new();
 
@@ -41,11 +41,15 @@ public class NonsensicalPatchReader
     {
         _patchUrl = patchUrl;
         _targetDirPath = targetDirPath;
+        PatchInfo = new PatchInfo();
+        PatchInfo.Blocks = new List<PatchBlock>();
     }
     
     public NonsensicalPatchReader(string patchUrl)
     {
         _patchUrl = patchUrl;
+        PatchInfo = new PatchInfo();
+        PatchInfo.Blocks = new List<PatchBlock>();
     }
 
     public async Task ReadAsync()
@@ -56,8 +60,6 @@ public class NonsensicalPatchReader
             return;
         }
 
-        PatchInfo = new PatchInfo();
-        PatchInfo.Blocks = new List<PatchBlock>();
 
         using (var patchStream = await GetStream())
         {
@@ -130,7 +132,7 @@ public class NonsensicalPatchReader
         {
             return;
         }
-        await StartPatch();
+        await StartPatchAsync();
 
         while (_runningCount > 0)
         {
@@ -184,8 +186,12 @@ public class NonsensicalPatchReader
         }
     }
 
-    private async Task StartPatch()
+    private async Task StartPatchAsync()
     {
+        if (_targetDirPath==null)
+        {
+            throw new Exception("_targetDirPath is null");
+        }
         using (var patchStream = await GetStream())
         {
             if (patchStream == null)

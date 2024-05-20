@@ -14,4 +14,11 @@ public class UpdateConfig
     /// 补丁打完后自动执行的可执行文件路径,为空时不自动执行
     /// </summary>
     public string AutoStartPath { get; set; }
+
+    public UpdateConfig()
+    {
+        PatchUrls = new List<string>();
+        TargetRootPath = string.Empty;
+        AutoStartPath = string.Empty;
+    }
 }

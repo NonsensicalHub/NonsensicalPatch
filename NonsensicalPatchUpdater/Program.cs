@@ -1,5 +1,4 @@
-﻿
-using NonsensicalPatch.Core;
+﻿using NonsensicalPatch.Core;
 using NonsensicalPatchUpdater;
 using System.Diagnostics;
 using System.Text.Json;

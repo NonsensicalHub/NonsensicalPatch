@@ -451,7 +451,7 @@ public static class BinaryPatch
             }
             else
             {
-                if (crtTemp==null)
+                if (crtTemp == null)
                 {
                     var x = v[I[crtStart + crtLen / 2] + h];
                     var jj = 0;
@@ -504,7 +504,7 @@ public static class BinaryPatch
                     {
                         starts.Push(crtStart);
                         lens.Push(crtLen);
-                        temps.Push(new TempValue(i,jj,kk)) ;
+                        temps.Push(new TempValue(i, jj, kk));
 
 
                         starts.Push(crtStart);
@@ -549,14 +549,14 @@ public static class BinaryPatch
         public int jj;
         public int kk;
 
-        public TempValue(int i,  int jj, int kk)
+        public TempValue(int i, int jj, int kk)
         {
             this.i = i;
             this.jj = jj;
             this.kk = kk;
         }
     }
-    
+
     /// <summary>
     /// ºó×ºÅÅÐò
     /// </summary>
