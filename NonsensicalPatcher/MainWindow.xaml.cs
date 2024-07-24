@@ -105,14 +105,17 @@ public partial class MainWindow : Window
     {
         _oldRootPath = OldRootPathBox.Text;
     }
+
     private void NewRootPath_TextChanged(object sender, TextChangedEventArgs e)
     {
         _newRootPath = NewRootPathBox.Text;
     }
+
     private void ExportPath_TextChanged(object sender, TextChangedEventArgs e)
     {
         _patchPath = ExportPathBox.Text;
     }
+
     private void PatchTargetRootPath_TextChanged(object sender, RoutedEventArgs e)
     {
         _patchTargetRootPath = PatchTargetRootPathTextBox.Text;
@@ -127,15 +130,18 @@ public partial class MainWindow : Window
     private void Build_ButtonClick(object sender, RoutedEventArgs e)
     {
         Build();
+        SaveConfig();
     }
     private void Patch_ButtonClick(object sender, RoutedEventArgs e)
     {
         Patch();
+        SaveConfig();
     }
 
     private void PatchRead_ButtonClick(object sender, RoutedEventArgs e)
     {
         ReadPatchFile();
+        SaveConfig();
     }
 
     private void MessageTextBox_TextChanged(object sender, TextChangedEventArgs e)

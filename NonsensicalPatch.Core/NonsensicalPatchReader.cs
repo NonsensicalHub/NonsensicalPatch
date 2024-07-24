@@ -60,11 +60,11 @@ public class NonsensicalPatchReader
             return;
         }
 
-
         using (var patchStream = await GetStream())
         {
             if (patchStream == null)
             {
+                AddError("无法加载补丁文件");
                 return;
             }
             BinaryReader reader = new BinaryReader(patchStream);
@@ -113,7 +113,6 @@ public class NonsensicalPatchReader
 
     public async Task RunAsync()
     {
-
         if (string.IsNullOrEmpty(_patchUrl))
         {
             AddError("补丁url为空");
@@ -127,12 +126,21 @@ public class NonsensicalPatchReader
         PatchInfo = new PatchInfo();
         PatchInfo.Blocks = new List<PatchBlock>();
         Logger.Instance.Log($"补丁：{_patchUrl}");
-        await Verify();
-        if (HasError)
+
+        using (var patchStream = await GetStream())
         {
-            return;
+            if (patchStream == null)
+            {
+                AddError("无法加载补丁文件");
+                return;
+            }
+            await Verify(patchStream);
+            if (HasError)
+            {
+                return;
+            }
+            await StartPatchAsync(patchStream);
         }
-        await StartPatchAsync();
 
         while (_runningCount > 0)
         {
@@ -146,129 +154,116 @@ public class NonsensicalPatchReader
         Logger.Instance.Log("补丁安装完成!");
     }
 
-    private async Task Verify()
+    private async Task Verify(Stream patchStream)
     {
-        using (var patchStream = await GetStream())
+        BinaryReader reader = new BinaryReader(patchStream);
+        var magic = reader.ReadBytes(16);
+        if (magic.SequenceEqual(BasicInfo.magic) == false)
         {
-            if (patchStream == null)
-            {
-                return;
-            }
-            BinaryReader reader = new BinaryReader(patchStream);
-            var magic = reader.ReadBytes(16);
-            if (magic.SequenceEqual(BasicInfo.magic) == false)
-            {
-                AddError($"文件头错误");
-                return;
-            }
+            AddError($"文件头错误");
+            return;
+        }
 
-            byte version = reader.ReadByte();
-            if (version < BasicInfo.PatchVersion)
-            {
-                AddError($"版本过低：{version}");
-                return;
-            }
-            CompressType compressType = (CompressType)reader.ReadByte();
-            byte[] md5Hash = reader.ReadBytes(16);
-            int blockCount = reader.ReadInt32();
+        byte version = reader.ReadByte();
+        if (version < BasicInfo.PatchVersion)
+        {
+            AddError($"版本过低：{version}");
+            return;
+        }
+        CompressType compressType = (CompressType)reader.ReadByte();
+        byte[] md5Hash = reader.ReadBytes(16);
+        int blockCount = reader.ReadInt32();
 
-            PatchInfo.Version = version;
-            PatchInfo.CompressType = compressType;
-            PatchInfo.MD5Hash = md5Hash;
-            PatchInfo.BlockCount = blockCount;
+        PatchInfo.Version = version;
+        PatchInfo.CompressType = compressType;
+        PatchInfo.MD5Hash = md5Hash;
+        PatchInfo.BlockCount = blockCount;
 
-            var hash = await MD5.HashDataAsync(patchStream);
-            if (hash.SequenceEqual(md5Hash) == false)
-            {
-                AddError($"md5校验失败");
-                return;
-            }
+        var hash = await MD5.HashDataAsync(patchStream);
+        if (hash.SequenceEqual(md5Hash) == false)
+        {
+            AddError($"md5校验失败");
+            return;
         }
     }
 
-    private async Task StartPatchAsync()
+    private async Task StartPatchAsync(Stream patchStream)
     {
         if (_targetDirPath==null)
         {
             throw new Exception("_targetDirPath is null");
         }
-        using (var patchStream = await GetStream())
+        patchStream.Position = 0;
+        patchStream.Seek(38, SeekOrigin.Current);
+        BinaryReader reader = new BinaryReader(patchStream);
+        for (int i = 0; i < PatchInfo.BlockCount; i++)
         {
-            if (patchStream == null)
+            BlockType patchType = (BlockType)reader.ReadByte();
+            short pathLength = reader.ReadInt16();
+            byte[] pathBytes = reader.ReadBytes(pathLength);
+            string path = Encoding.UTF8.GetString(pathBytes);
+            string fullPath = Path.Combine(_targetDirPath, path);
+
+            Logger.Instance.Log($"{patchType} | {path}");
+
+            var newBlock = new PatchBlock(patchType, path);
+
+            switch (patchType)
             {
-                return;
-            }
-            patchStream.Seek(38, SeekOrigin.Current);
-            BinaryReader reader = new BinaryReader(patchStream);
-            for (int i = 0; i < PatchInfo.BlockCount; i++)
-            {
-                BlockType patchType = (BlockType)reader.ReadByte();
-                short pathLength = reader.ReadInt16();
-                byte[] pathBytes = reader.ReadBytes(pathLength);
-                string path = Encoding.UTF8.GetString(pathBytes);
-                string fullPath = Path.Combine(_targetDirPath, path);
-
-                Logger.Instance.Log($"{patchType} | {path}");
-
-                var newBlock = new PatchBlock(patchType, path);
-
-                switch (patchType)
-                {
-                    case BlockType.RemoveFile:
-                        File.Delete(fullPath);
-                        break;
-                    case BlockType.CreateFile:
+                case BlockType.RemoveFile:
+                    File.Delete(fullPath);
+                    break;
+                case BlockType.CreateFile:
+                    {
+                        long size = reader.ReadInt64();
+                        newBlock.DataSize = size;
+                        var targetPos = patchStream.Position + size;
+                        try
                         {
-                            long size = reader.ReadInt64();
-                            newBlock.DataSize = size;
-                            var targetPos = patchStream.Position + size;
-                            try
-                            {
-                                string tempPatchPath = GetTempFilePath();
-                                using (var tempPatchStream = new FileStream(tempPatchPath, FileMode.Create))
-                                    await CopyStreamAsync(patchStream, tempPatchStream, new byte[4096], size);
-                                _runningCount++;
-                                Thread thread = new Thread(() => DecompressFile(tempPatchPath, fullPath));
-                                thread.Start();
-                            }
-                            catch (Exception e)
-                            {
-                                AddError($"无法创建文件：{fullPath},{e.Message},{e.StackTrace}");
-                                return;
-                            }
-                        }
-                        break;
-                    case BlockType.ModifyFile:
-                        {
-                            int size = (int)reader.ReadInt64();
-                            newBlock.DataSize = size;
                             string tempPatchPath = GetTempFilePath();
                             using (var tempPatchStream = new FileStream(tempPatchPath, FileMode.Create))
                                 await CopyStreamAsync(patchStream, tempPatchStream, new byte[4096], size);
                             _runningCount++;
-                            Thread thread = new Thread(() => PatchFile(tempPatchPath, fullPath));
+                            Thread thread = new Thread(() => DecompressFile(tempPatchPath, fullPath));
                             thread.Start();
                         }
-                        break;
-                    case BlockType.RemoveFolder:
-                        Directory.Delete(fullPath, true);
-                        break;
-                    case BlockType.CreateFolder:
+                        catch (Exception e)
                         {
-                            Directory.CreateDirectory(fullPath);
+                            AddError($"无法创建文件：{fullPath},{e.Message},{e.StackTrace}");
+                            return;
                         }
-                        break;
-                    default:
-                        break;
-                }
-                PatchInfo.Blocks.Add(newBlock);
+                    }
+                    break;
+                case BlockType.ModifyFile:
+                    {
+                        int size = (int)reader.ReadInt64();
+                        newBlock.DataSize = size;
+                        string tempPatchPath = GetTempFilePath();
+                        using (var tempPatchStream = new FileStream(tempPatchPath, FileMode.Create))
+                            await CopyStreamAsync(patchStream, tempPatchStream, new byte[4096], size);
+                        _runningCount++;
+                        Thread thread = new Thread(() => PatchFile(tempPatchPath, fullPath));
+                        thread.Start();
+                    }
+                    break;
+                case BlockType.RemoveFolder:
+                    Directory.Delete(fullPath, true);
+                    break;
+                case BlockType.CreateFolder:
+                    {
+                        Directory.CreateDirectory(fullPath);
+                    }
+                    break;
+                default:
+                    break;
             }
+            PatchInfo.Blocks.Add(newBlock);
         }
     }
 
     private async Task<Stream?> GetStream()
     {
-        Stream patchStream;
+        Stream patchStream ;
         if (File.Exists(_patchUrl))
         {
             try

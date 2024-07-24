@@ -84,20 +84,20 @@ foreach (var item in updateConfig.PatchUrls)
         if (debug) Console.ReadKey();
         return;
     }
-
-    if (File.Exists(updateConfig.AutoStartPath))
-    {
-        try
-        {
-            Process.Start(updateConfig.AutoStartPath);
-        }
-        catch (Exception)
-        {
-            Console.WriteLine($"无法执行：{updateConfig.AutoStartPath}");
-            if (debug) Console.ReadKey();
-            return;
-        }
-    };
 }
+
+if (File.Exists(updateConfig.AutoStartPath))
+{
+    try
+    {
+        Process.Start(updateConfig.AutoStartPath);
+    }
+    catch (Exception)
+    {
+        Console.WriteLine($"无法执行：{updateConfig.AutoStartPath}");
+        if (debug) Console.ReadKey();
+        return;
+    }
+};
 
 if (debug) Console.ReadKey();
