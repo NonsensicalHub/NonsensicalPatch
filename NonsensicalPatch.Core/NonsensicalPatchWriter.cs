@@ -62,32 +62,32 @@ public class NonsensicalPatchWriter
         _md5.Initialize();
     }
 
-    public async Task RunAsync()
+    public async Task<long> RunAsync()
     {
         if (_output is null)
         {
             AddError($"输出流为空");
-            return;
+            return 0;
         }
         if (!_output.CanSeek)
         {
             AddError($"输出流不可查找");
-            return;
+            return 0;
         }
         if (!_output.CanWrite)
         {
             AddError($"输出流不可写");
-            return;
+            return 0;
         }
         if (string.IsNullOrEmpty(_oldRootPath) || (Directory.Exists(_oldRootPath) == false))
         {
             AddError($"旧项目根目录不正确");
-            return;
+            return 0;
         }
         if (string.IsNullOrEmpty(_newRootPath) || (Directory.Exists(_newRootPath) == false))
         {
             AddError($"新项目根目录不正确");
-            return;
+            return 0;
         }
 
         _runningCount = 0;
@@ -109,7 +109,7 @@ public class NonsensicalPatchWriter
             if (HasError)
             {
                 _cancel.Cancel();
-                return;
+                return 0;
             }
         }
 
@@ -124,6 +124,8 @@ public class NonsensicalPatchWriter
         _output.Write(md5Hash, 0, 16);
         _output.Write(BitConverter.GetBytes(_blockCount), 0, 4);
         _output.Position = endPos;
+
+        return endPos;
     }
 
     private void StartDiff()

@@ -28,7 +28,7 @@ namespace NonsensicalPatch.Core;
 public class NonsensicalPatchReader
 {
     public List<string> ErrorMessage = new List<string>();
-    public bool HasError => ErrorMessage.Count != 0;
+    public bool HasError;
     public PatchInfo PatchInfo { get; private set; }
 
     private readonly object _errorMessageLock = new();
@@ -278,6 +278,7 @@ public class NonsensicalPatchReader
         }
         else
         {
+            AddError($"未检测到本地补丁文件，尝试从互联网获取",false);
             var response = await GetFileFormInternet(_patchUrl);
             if (response == null)
             {
@@ -392,11 +393,15 @@ public class NonsensicalPatchReader
         }
     }
 
-    private void AddError(string errorMessage)
+    private void AddError(string errorMessage,bool error=true)
     {
         lock (_errorMessageLock)
         {
             ErrorMessage.Add(errorMessage);
+            if (error)
+            {
+                HasError = true;
+            }
         }
     }
 
