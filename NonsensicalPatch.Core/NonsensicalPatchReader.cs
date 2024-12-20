@@ -42,18 +42,17 @@ public class NonsensicalPatchReader
         _patchUrl = patchUrl;
         _targetDirPath = targetDirPath;
         PatchInfo = new PatchInfo();
-        PatchInfo.Blocks = new List<PatchBlock>();
     }
-    
+
     public NonsensicalPatchReader(string patchUrl)
     {
         _patchUrl = patchUrl;
         PatchInfo = new PatchInfo();
-        PatchInfo.Blocks = new List<PatchBlock>();
     }
 
     public async Task ReadAsync()
     {
+        HasError = false;
         if (string.IsNullOrEmpty(_patchUrl))
         {
             AddError("补丁url为空");
@@ -113,6 +112,7 @@ public class NonsensicalPatchReader
 
     public async Task RunAsync()
     {
+        HasError = false;
         if (string.IsNullOrEmpty(_patchUrl))
         {
             AddError("补丁url为空");
@@ -123,8 +123,21 @@ public class NonsensicalPatchReader
             AddError("目标路径不可用");
             return;
         }
+
+        var testTempPath = Tools.GetTempFilePath();
+        try
+        {
+            File.Create(testTempPath);
+            File.Delete(testTempPath);
+        }
+        catch (Exception)
+        {
+            AddError("无权读写临时文件");
+            return;
+        }
+
+
         PatchInfo = new PatchInfo();
-        PatchInfo.Blocks = new List<PatchBlock>();
         Logger.Instance.Log($"补丁：{_patchUrl}");
 
         using (var patchStream = await GetStream())
@@ -189,7 +202,7 @@ public class NonsensicalPatchReader
 
     private async Task StartPatchAsync(Stream patchStream)
     {
-        if (_targetDirPath==null)
+        if (_targetDirPath == null)
         {
             throw new Exception("_targetDirPath is null");
         }
@@ -220,7 +233,7 @@ public class NonsensicalPatchReader
                         var targetPos = patchStream.Position + size;
                         try
                         {
-                            string tempPatchPath = GetTempFilePath();
+                            string tempPatchPath = Tools.GetTempFilePath();
                             using (var tempPatchStream = new FileStream(tempPatchPath, FileMode.Create))
                                 await CopyStreamAsync(patchStream, tempPatchStream, new byte[4096], size);
                             _runningCount++;
@@ -238,7 +251,7 @@ public class NonsensicalPatchReader
                     {
                         int size = (int)reader.ReadInt64();
                         newBlock.DataSize = size;
-                        string tempPatchPath = GetTempFilePath();
+                        string tempPatchPath = Tools.GetTempFilePath();
                         using (var tempPatchStream = new FileStream(tempPatchPath, FileMode.Create))
                             await CopyStreamAsync(patchStream, tempPatchStream, new byte[4096], size);
                         _runningCount++;
@@ -263,7 +276,7 @@ public class NonsensicalPatchReader
 
     private async Task<Stream?> GetStream()
     {
-        Stream patchStream ;
+        Stream patchStream;
         if (File.Exists(_patchUrl))
         {
             try
@@ -278,7 +291,7 @@ public class NonsensicalPatchReader
         }
         else
         {
-            AddError($"未检测到本地补丁文件，尝试从互联网获取",false);
+            AddError($"未检测到本地补丁文件，尝试从互联网获取", false);
             var response = await GetFileFormInternet(_patchUrl);
             if (response == null)
             {
@@ -325,7 +338,7 @@ public class NonsensicalPatchReader
     {
         try
         {
-            string tempFilePath = GetTempFilePath();
+            string tempFilePath = Tools.GetTempFilePath();
             File.Copy(targetPath, tempFilePath);
 
             using (var fs = new FileStream(tempFilePath, FileMode.Open, FileAccess.Read, FileShare.Read))
@@ -393,7 +406,7 @@ public class NonsensicalPatchReader
         }
     }
 
-    private void AddError(string errorMessage,bool error=true)
+    private void AddError(string errorMessage, bool error = true)
     {
         lock (_errorMessageLock)
         {
@@ -403,15 +416,5 @@ public class NonsensicalPatchReader
                 HasError = true;
             }
         }
-    }
-
-    private string GetTempFilePath()
-    {
-        var tempDir = Path.Combine(Path.GetTempPath(), "Nonsensical");
-        if (Directory.Exists(tempDir) == false)
-        {
-            Directory.CreateDirectory(tempDir);
-        }
-        return Path.Combine(tempDir, Guid.NewGuid().ToString() + ".temp");
     }
 }

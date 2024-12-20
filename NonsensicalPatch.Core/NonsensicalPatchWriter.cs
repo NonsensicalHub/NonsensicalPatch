@@ -90,6 +90,18 @@ public class NonsensicalPatchWriter
             return 0;
         }
 
+        var testTempPath = Tools.GetTempFilePath();
+        try
+        {
+            File.Create(testTempPath);
+            File.Delete(testTempPath);
+        }
+        catch (Exception)
+        {
+            AddError("无权读写临时文件");
+            return 0;
+        }
+
         _runningCount = 0;
         ErrorMessage.Clear();
         _oldRootPathLength = _oldRootPath.Length + 1;
@@ -312,7 +324,7 @@ public class NonsensicalPatchWriter
         _runningCount++;
         try
         {
-            var tempPath = GetTempFilePath();
+            var tempPath = Tools.GetTempFilePath();
             using (var tempFile = File.Create(tempPath))
             {
                 var oldPos = tempFile.Position;
@@ -341,7 +353,7 @@ public class NonsensicalPatchWriter
         _runningCount++;
         try
         {
-            var tempPath = GetTempFilePath();
+            var tempPath = Tools.GetTempFilePath();
             using (var tempFile = File.Create(tempPath))
             using (var fs = fileInfo.OpenRead())
             {
@@ -495,15 +507,5 @@ public class NonsensicalPatchWriter
         {
             ErrorMessage.Add(errorMessage);
         }
-    }
-
-    private string GetTempFilePath()
-    {
-        var tempDir = Path.Combine(Path.GetTempPath(), "Nonsensical");
-        if (Directory.Exists(tempDir) == false)
-        {
-            Directory.CreateDirectory(tempDir);
-        }
-        return Path.Combine(tempDir, Guid.NewGuid().ToString() + ".temp");
     }
 }

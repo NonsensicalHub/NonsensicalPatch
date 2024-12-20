@@ -4,7 +4,6 @@ using System.Collections.Specialized;
 using System.Configuration;
 using System.Diagnostics;
 using System.IO;
-using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 
@@ -260,6 +259,7 @@ public partial class MainWindow : Window
         if (string.IsNullOrEmpty(PatchPath))
         {
             AppendMessage($"补丁导出路径为空");
+            EnableControl();
             return;
         }
         if (File.Exists(PatchPath))
@@ -268,9 +268,10 @@ public partial class MainWindow : Window
                                           "确定",
                                           MessageBoxButton.YesNo,
                                           MessageBoxImage.Question);
-            if (result == MessageBoxResult.Yes)
+            if (result == MessageBoxResult.No)
             {
-                Application.Current.Shutdown();
+                EnableControl();
+                return;
             }
         }
 
@@ -284,6 +285,7 @@ public partial class MainWindow : Window
         catch (Exception)
         {
             AppendMessage($"补丁导出路径：{PatchPath} 不正确或正被占用");
+            EnableControl();
             return;
         }
         NonsensicalPatchWriter differ = new NonsensicalPatchWriter(OldRootPath, NewRootPath, CompressType, fs);

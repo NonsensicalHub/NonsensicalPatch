@@ -98,6 +98,6 @@ if (File.Exists(updateConfig.AutoStartPath))
         if (debug) Console.ReadKey();
         return;
     }
-};
+}
 
 if (debug) Console.ReadKey();
