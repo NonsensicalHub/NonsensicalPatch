@@ -29,36 +29,47 @@ public class NonsensicalPatchReader
 {
     public List<string> ErrorMessage = new List<string>();
     public bool HasError;
+    public Action<MissionState>? MissionStateChanged;
     public PatchInfo PatchInfo { get; private set; }
 
     private readonly object _errorMessageLock = new();
 
+    private HttpClient _client;
     private int _runningCount;
     private string _patchUrl;
     private string? _targetDirPath;
 
-    public NonsensicalPatchReader(string patchUrl, string targetDirPath)
+    private long _currentMissionMaxSize;
+
+    private bool _alreadyRunning;
+
+    public NonsensicalPatchReader(string patchUrl, string targetDirPath) : this(patchUrl)
     {
-        _patchUrl = patchUrl;
         _targetDirPath = targetDirPath;
-        PatchInfo = new PatchInfo();
     }
 
     public NonsensicalPatchReader(string patchUrl)
     {
         _patchUrl = patchUrl;
         PatchInfo = new PatchInfo();
+        _client = new HttpClient(new HttpClientHandler() { UseDefaultCredentials = true });
+        _client.DefaultRequestHeaders.Connection.Add("keep-alive");
     }
 
     public async Task ReadAsync()
     {
-        HasError = false;
+        if (_alreadyRunning)
+        {
+            AddError("请勿重复运行");
+            return;
+        }
+        _alreadyRunning = true;
         if (string.IsNullOrEmpty(_patchUrl))
         {
             AddError("补丁url为空");
             return;
         }
-
+        MissionStateChanged?.Invoke(new MissionState("开始读取补丁"));
         using (var patchStream = await GetStream())
         {
             if (patchStream == null)
@@ -112,7 +123,12 @@ public class NonsensicalPatchReader
 
     public async Task RunAsync()
     {
-        HasError = false;
+        if (_alreadyRunning)
+        {
+            AddError("请勿重复运行");
+            return;
+        }
+        _alreadyRunning = true;
         if (string.IsNullOrEmpty(_patchUrl))
         {
             AddError("补丁url为空");
@@ -127,7 +143,8 @@ public class NonsensicalPatchReader
         var testTempPath = Tools.GetTempFilePath();
         try
         {
-            File.Create(testTempPath);
+            var v = File.Create(testTempPath);
+            v.Close();
             File.Delete(testTempPath);
         }
         catch (Exception)
@@ -147,11 +164,13 @@ public class NonsensicalPatchReader
                 AddError("无法加载补丁文件");
                 return;
             }
+            MissionStateChanged?.Invoke(new MissionState("验证补丁文件"));
             await Verify(patchStream);
             if (HasError)
             {
                 return;
             }
+            MissionStateChanged?.Invoke(new MissionState("开始应用补丁"));
             await StartPatchAsync(patchStream);
         }
 
@@ -221,6 +240,7 @@ public class NonsensicalPatchReader
 
             var newBlock = new PatchBlock(patchType, path);
 
+            MissionStateChanged?.Invoke(new MissionState("应用补丁中", true, patchStream.Position, _currentMissionMaxSize));
             switch (patchType)
             {
                 case BlockType.RemoveFile:
@@ -236,6 +256,7 @@ public class NonsensicalPatchReader
                             string tempPatchPath = Tools.GetTempFilePath();
                             using (var tempPatchStream = new FileStream(tempPatchPath, FileMode.Create))
                                 await CopyStreamAsync(patchStream, tempPatchStream, new byte[4096], size);
+
                             _runningCount++;
                             Thread thread = new Thread(() => DecompressFile(tempPatchPath, fullPath));
                             thread.Start();
@@ -271,6 +292,7 @@ public class NonsensicalPatchReader
                     break;
             }
             PatchInfo.Blocks.Add(newBlock);
+            MissionStateChanged?.Invoke(new MissionState("补丁应用完毕"));
         }
     }
 
@@ -281,6 +303,7 @@ public class NonsensicalPatchReader
         {
             try
             {
+                MissionStateChanged?.Invoke(new MissionState("读取本地补丁文件"));
                 patchStream = File.OpenRead(_patchUrl);
             }
             catch (Exception)
@@ -291,6 +314,7 @@ public class NonsensicalPatchReader
         }
         else
         {
+            MissionStateChanged?.Invoke(new MissionState("从互联网获取补丁"));
             AddError($"未检测到本地补丁文件，尝试从互联网获取", false);
             var response = await GetFileFormInternet(_patchUrl);
             if (response == null)
@@ -299,6 +323,7 @@ public class NonsensicalPatchReader
                 return null;
             }
             patchStream = await response.Content.ReadAsStreamAsync();
+            _currentMissionMaxSize = response.Content.Headers.ContentLength ?? 0;
         }
         return patchStream;
     }
@@ -360,11 +385,11 @@ public class NonsensicalPatchReader
     private async Task<HttpResponseMessage?> GetFileFormInternet(string url)
     {
         Logger.Instance.Log($"开始下载：{url}");
-        var myClient = new HttpClient(new HttpClientHandler() { UseDefaultCredentials = true });
+
         HttpResponseMessage? response;
         try
         {
-            response = await myClient.GetAsync(url);
+            response = await _client.GetAsync(url);
         }
         catch (Exception)
         {
@@ -403,6 +428,7 @@ public class NonsensicalPatchReader
                 await destination.FlushAsync();
                 copying = false;
             }
+            MissionStateChanged?.Invoke(new MissionState("应用补丁中", true, source.Position, _currentMissionMaxSize));
         }
     }
 

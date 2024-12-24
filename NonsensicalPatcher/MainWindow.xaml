@@ -19,7 +19,7 @@
             </TabItem>
         </TabControl>
 
-        <StackPanel Orientation="Vertical" Margin="40,40,20,0" >
+        <StackPanel Orientation="Vertical" Margin="40,40,40,0" Height="120" VerticalAlignment="Top" >
             <Grid x:Name="OldPathSelect" Height="30">
                 <Label Content="旧版本文件根目录" HorizontalAlignment="Left" Margin="0,0,0,0" VerticalAlignment="Center"  />
                 <Button x:Name="SelectOldPathButton" Content="选择文件夹" Margin="120,0,0,0" VerticalAlignment="Center"  Click="OldRootSelect_ButtonClick" HorizontalAlignment="Left" />
@@ -51,13 +51,12 @@
         <Button x:Name="ApplyButton" Content="应用补丁" HorizontalAlignment="Left" Margin="384,160,0,0" VerticalAlignment="Top" Click="Patch_ButtonClick" Height="20" Width="52"/>
         <Button x:Name="ReadButton" Content="读取补丁" HorizontalAlignment="Left" Margin="384,160,0,0" VerticalAlignment="Top" Click="PatchRead_ButtonClick" Height="20" Width="52"/>
 
-        <ScrollViewer x:Name="MessageTextScrollViewer" Margin="40,184,40,39">
+        <ScrollViewer x:Name="MessageTextScrollViewer" Margin="40,200,40,40">
             <RichTextBox x:Name="MessageTextBox" IsReadOnly="True" TextChanged="MessageTextBox_TextChanged">
                 <FlowDocument/>
             </RichTextBox>
         </ScrollViewer>
         <Button Content="清空" HorizontalAlignment="Center" Margin="0,0,0,10" Click="ClearButton_Click" VerticalAlignment="Bottom"/>
       
-
     </Grid>
 </Window>

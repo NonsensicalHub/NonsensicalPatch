@@ -52,6 +52,8 @@ public class NonsensicalPatchWriter
     private Stream _output;
     private MD5 _md5;
 
+    private bool _alreadyRunning;
+
     public NonsensicalPatchWriter(string oldRootPath, string newRootPath, CompressType compressType, Stream outputStream)
     {
         _oldRootPath = oldRootPath;
@@ -64,6 +66,12 @@ public class NonsensicalPatchWriter
 
     public async Task<long> RunAsync()
     {
+        if (_alreadyRunning)
+        {
+            AddError("请勿重复运行");
+            return 0;
+        }
+        _alreadyRunning = true;
         if (_output is null)
         {
             AddError($"输出流为空");
@@ -93,7 +101,8 @@ public class NonsensicalPatchWriter
         var testTempPath = Tools.GetTempFilePath();
         try
         {
-            File.Create(testTempPath);
+            var v = File.Create(testTempPath);
+            v.Close();
             File.Delete(testTempPath);
         }
         catch (Exception)
