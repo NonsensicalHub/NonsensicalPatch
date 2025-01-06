@@ -39,6 +39,8 @@ public class NonsensicalPatchReader
     private string _patchUrl;
     private string? _targetDirPath;
 
+    private string _tempPatchPath;
+
     private long _currentMissionMaxSize;
 
     private bool _alreadyRunning;
@@ -147,12 +149,11 @@ public class NonsensicalPatchReader
             v.Close();
             File.Delete(testTempPath);
         }
-        catch (Exception)
+        catch (Exception e)
         {
-            AddError("无权读写临时文件");
+            AddError($"无法读写临时文件：{e.Message},{e.StackTrace}");
             return;
         }
-
 
         PatchInfo = new PatchInfo();
         Logger.Instance.Log($"补丁：{_patchUrl}");
@@ -172,6 +173,11 @@ public class NonsensicalPatchReader
             }
             MissionStateChanged?.Invoke(new MissionState("开始应用补丁"));
             await StartPatchAsync(patchStream);
+        }
+        if (string.IsNullOrEmpty(_tempPatchPath)==false)
+        {
+            File.Delete(_tempPatchPath);
+            _tempPatchPath = string.Empty;
         }
 
         while (_runningCount > 0)
@@ -240,7 +246,7 @@ public class NonsensicalPatchReader
 
             var newBlock = new PatchBlock(patchType, path);
 
-            MissionStateChanged?.Invoke(new MissionState("应用补丁中", true, patchStream.Position, _currentMissionMaxSize));
+            MissionStateChanged?.Invoke(new MissionState("应用补丁", true, patchStream.Position, _currentMissionMaxSize));
             switch (patchType)
             {
                 case BlockType.RemoveFile:
@@ -255,7 +261,7 @@ public class NonsensicalPatchReader
                         {
                             string tempPatchPath = Tools.GetTempFilePath();
                             using (var tempPatchStream = new FileStream(tempPatchPath, FileMode.Create))
-                                await CopyStreamAsync(patchStream, tempPatchStream, new byte[4096], size);
+                                await CopyStreamAsync(patchStream, tempPatchStream, new byte[65536], size);
 
                             _runningCount++;
                             Thread thread = new Thread(() => DecompressFile(tempPatchPath, fullPath));
@@ -274,7 +280,7 @@ public class NonsensicalPatchReader
                         newBlock.DataSize = size;
                         string tempPatchPath = Tools.GetTempFilePath();
                         using (var tempPatchStream = new FileStream(tempPatchPath, FileMode.Create))
-                            await CopyStreamAsync(patchStream, tempPatchStream, new byte[4096], size);
+                            await CopyStreamAsync(patchStream, tempPatchStream, new byte[65536], size);
                         _runningCount++;
                         Thread thread = new Thread(() => PatchFile(tempPatchPath, fullPath));
                         thread.Start();
@@ -292,8 +298,8 @@ public class NonsensicalPatchReader
                     break;
             }
             PatchInfo.Blocks.Add(newBlock);
-            MissionStateChanged?.Invoke(new MissionState("补丁应用完毕"));
         }
+        MissionStateChanged?.Invoke(new MissionState("补丁应用完毕"));
     }
 
     private async Task<Stream?> GetStream()
@@ -305,16 +311,17 @@ public class NonsensicalPatchReader
             {
                 MissionStateChanged?.Invoke(new MissionState("读取本地补丁文件"));
                 patchStream = File.OpenRead(_patchUrl);
+                _currentMissionMaxSize = new FileInfo(_patchUrl).Length; 
             }
-            catch (Exception)
+            catch (Exception e)
             {
-                AddError($"无法读取文件： {_patchUrl}");
+                AddError($"无法读取文件：{_patchUrl},{e.Message},{e.StackTrace}");
                 return null;
             }
         }
         else
         {
-            MissionStateChanged?.Invoke(new MissionState("从互联网获取补丁"));
+            MissionStateChanged?.Invoke(new MissionState("从互联网下载补丁"));
             AddError($"未检测到本地补丁文件，尝试从互联网获取", false);
             var response = await GetFileFormInternet(_patchUrl);
             if (response == null)
@@ -322,8 +329,30 @@ public class NonsensicalPatchReader
                 AddError($"无法从：{_patchUrl} 获取补丁文件");
                 return null;
             }
-            patchStream = await response.Content.ReadAsStreamAsync();
             _currentMissionMaxSize = response.Content.Headers.ContentLength ?? 0;
+
+            _tempPatchPath = Tools.GetTempFilePath();
+
+            using (var file=File.Create(_tempPatchPath)) 
+            using (var download = await response.Content.ReadAsStreamAsync()) 
+            {
+                var buffer = new byte[65536];
+
+                long totalBytesRead = 0;
+
+                int bytesRead;
+
+                while ((bytesRead = await download.ReadAsync(buffer, 0, buffer.Length).ConfigureAwait(false)) != 0)
+                {
+                    await file.WriteAsync(buffer, 0, bytesRead).ConfigureAwait(false);
+                    totalBytesRead += bytesRead;
+
+                    MissionStateChanged?.Invoke(new MissionState("下载补丁",true, totalBytesRead, _currentMissionMaxSize));
+                }
+                file.Flush();
+                file.Close();
+            }
+            patchStream = File.OpenRead(_tempPatchPath);
         }
         return patchStream;
     }
@@ -389,12 +418,12 @@ public class NonsensicalPatchReader
         HttpResponseMessage? response;
         try
         {
-            response = await _client.GetAsync(url);
+            response = await _client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
         }
-        catch (Exception)
+        catch (Exception e)
         {
 
-            AddError($"下载失败：{url}");
+            AddError($"下载失败：{url},{e.Message},{e.StackTrace}");
             return null;
         }
 
@@ -428,7 +457,7 @@ public class NonsensicalPatchReader
                 await destination.FlushAsync();
                 copying = false;
             }
-            MissionStateChanged?.Invoke(new MissionState("应用补丁中", true, source.Position, _currentMissionMaxSize));
+            MissionStateChanged?.Invoke(new MissionState("应用补丁", true, source.Position, _currentMissionMaxSize));
         }
     }
 

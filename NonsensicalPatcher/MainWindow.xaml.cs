@@ -300,7 +300,7 @@ public partial class MainWindow : Window
 
         if (!differ.HasError)
         {
-            AppendMessage($"补丁生成完毕，总共花费{sw.Elapsed.TotalMilliseconds}毫秒,补丁大小为{patchSize}字节");
+            AppendMessage($"补丁生成完毕，总共花费{sw.Elapsed.TotalMilliseconds}毫秒,补丁大小为{patchSize}字节({patchSize.ToShortSizeString()})");
         }
         else
         {

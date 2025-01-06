@@ -13,6 +13,7 @@ namespace NonsensicalPatch.Core
 
             return result.ToString();
         }
+
         public static string GetTempFilePath()
         {
             var tempDir = Path.Combine(Path.GetTempPath(), "Nonsensical");
@@ -21,6 +22,36 @@ namespace NonsensicalPatch.Core
                 Directory.CreateDirectory(tempDir);
             }
             return Path.Combine(tempDir, Guid.NewGuid().ToString() + ".temp");
+        }
+
+        public static string ToShortSizeString(this long size)
+        {
+            double bytes = size;
+            if (bytes < 1024)
+            {
+                return bytes.ToString("f2") + "B";
+            }
+
+            bytes /= 1024;
+            if (bytes < 1024)
+            {
+                return bytes.ToString("f2") + "KB";
+            }
+
+            bytes /= 1024;
+            if (bytes < 1024)
+            {
+                return bytes.ToString("f2") + "MB";
+            }
+
+            bytes /= 1024;
+            if (bytes < 1024)
+            {
+                return bytes.ToString("f2") + "GB";
+            }
+
+            bytes /= 1024;
+            return bytes.ToString("f2") + "TB";
         }
     }
 }
