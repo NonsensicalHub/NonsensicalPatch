@@ -12,6 +12,9 @@ namespace NonsensicalPatchWindowUpdater
     /// </summary>
     public partial class MainWindow : Window
     {
+        private MissionState _latestState;
+        private readonly object _lock = new();
+
         public MainWindow()
         {
             InitializeComponent();
@@ -161,20 +164,26 @@ namespace NonsensicalPatchWindowUpdater
             if (!debug) Environment.Exit(0);
         }
 
-        private MissionState _latestState;
-
         private void OnMissionChanged(MissionState state)
         {
-            _latestState = state;
+            lock (_lock)
+            {
+                _latestState = state;
+            }
         }
 
         private void UpdateUI(object sender, EventArgs e)
         {
-            txt_CurrentPatchMission.Content = _latestState.MissionName;
-            pro_LoadCurrentPatch.IsIndeterminate = _latestState.IsIndeterminate;
-            if (_latestState.MaxSize != 0)
+            MissionState state;
+            lock (_lock)
             {
-                double currentSize = Math.Clamp((double)_latestState.CurrentSize / _latestState.MaxSize * 100, 0, 100);
+                state = _latestState;
+            }
+            txt_CurrentPatchMission.Content = state.MissionName;
+            pro_LoadCurrentPatch.IsIndeterminate = state.IsIndeterminate;
+            if (state.MaxSize != 0)
+            {
+                double currentSize = Math.Clamp((double)state.CurrentSize / state.MaxSize * 100, 0, 100);
                 pro_LoadCurrentPatch.Value = currentSize;
                 txt_LoadCurrentPatch.Content = currentSize.ToString("f2") + "%";
             }
