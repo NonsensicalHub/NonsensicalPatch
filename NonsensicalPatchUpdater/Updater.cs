@@ -155,23 +155,19 @@ namespace NonsensicalPatchUpdater
 
             if (state.IsIndeterminate)
             {
-                double value = (double)state.CurrentSize / state.MaxSize;
-                double countd = (value / (0.1));
-                int count = (int)countd;
-                if (countd - count > 0)
-                {
-                    count += 1;
-                }
-                StringBuilder sb = new StringBuilder();
-                sb.Append("[");
-                sb.Append('█', count);
-                sb.Append(' ', 10 - count);
-                sb.Append("]");
-                Console.WriteLine(FillToWindowWidth($"当前任务进度:{sb.ToString()}"));
+                Console.WriteLine(FillToWindowWidth("当前任务进度:加载中"));
             }
             else
             {
-                Console.WriteLine(FillToWindowWidth("当前任务进度:加载中"));
+                double value = (double)state.CurrentSize / state.MaxSize;
+                double countd = value * 10 + 1;
+                int count = Math.Clamp((int)countd, 0, 10);
+                StringBuilder sb = new StringBuilder();
+                sb.Append('[');
+                sb.Append('█', count);
+                sb.Append(' ', 10 - count);
+                sb.Append(']');
+                Console.WriteLine(FillToWindowWidth($"当前任务进度:{sb.ToString()}"));
             }
         }
 

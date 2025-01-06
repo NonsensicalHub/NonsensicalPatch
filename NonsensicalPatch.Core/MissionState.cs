@@ -7,18 +7,18 @@
         public long CurrentSize;
         public long MaxSize;
 
-        public MissionState(string missionName) 
+        public MissionState(string missionName)
         {
             MissionName = missionName;
-            IsIndeterminate = false;
+            IsIndeterminate = true;
             CurrentSize = 0;
             MaxSize = 0;
         }
 
-        public MissionState(string missionName, bool isIndeterminate, long currentSize, long maxSize)
+        public MissionState(string missionName, long currentSize, long maxSize)
         {
             MissionName = missionName;
-            IsIndeterminate = isIndeterminate;
+            IsIndeterminate = false;
             CurrentSize = currentSize;
             MaxSize = maxSize;
         }

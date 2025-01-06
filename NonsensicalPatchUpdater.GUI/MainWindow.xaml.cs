@@ -38,7 +38,6 @@ namespace NonsensicalPatchWindowUpdater
             MessageTextBox.AppendText(newMessage + "\r");
         }
 
-
         private async void StartPatch()
         {
             bool debug = false;
@@ -117,6 +116,11 @@ namespace NonsensicalPatchWindowUpdater
             Logger log = new Logger();
             log.LogAction += AppendMessage;
 
+            System.Windows.Threading.DispatcherTimer dispatcherTimer = new System.Windows.Threading.DispatcherTimer();
+            dispatcherTimer.Tick += new EventHandler(UpdateUI);
+            dispatcherTimer.Interval = TimeSpan.FromMicroseconds(100);
+            dispatcherTimer.Start();
+
             int patchCount = 1;
 
             foreach (var item in updateConfig.PatchUrls)
@@ -155,16 +159,22 @@ namespace NonsensicalPatchWindowUpdater
             }
 
             if (!debug) Environment.Exit(0);
-
         }
+
+        private MissionState _latestState;
 
         private void OnMissionChanged(MissionState state)
         {
-            txt_CurrentPatchMission.Content = state.MissionName;
-            pro_LoadCurrentPatch.IsIndeterminate = state.IsIndeterminate;
-            if (state.MaxSize != 0)
+            _latestState = state;
+        }
+
+        private void UpdateUI(object sender, EventArgs e)
+        {
+            txt_CurrentPatchMission.Content = _latestState.MissionName;
+            pro_LoadCurrentPatch.IsIndeterminate = _latestState.IsIndeterminate;
+            if (_latestState.MaxSize != 0)
             {
-                double currentSize = (double)state.CurrentSize / state.MaxSize * 100;
+                double currentSize = Math.Clamp((double)_latestState.CurrentSize / _latestState.MaxSize * 100, 0, 100);
                 pro_LoadCurrentPatch.Value = currentSize;
                 txt_LoadCurrentPatch.Content = currentSize.ToString("f2") + "%";
             }

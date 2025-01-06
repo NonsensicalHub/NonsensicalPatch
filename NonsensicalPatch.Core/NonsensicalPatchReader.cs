@@ -174,7 +174,7 @@ public class NonsensicalPatchReader
             MissionStateChanged?.Invoke(new MissionState("开始应用补丁"));
             await StartPatchAsync(patchStream);
         }
-        if (string.IsNullOrEmpty(_tempPatchPath)==false)
+        if (string.IsNullOrEmpty(_tempPatchPath) == false)
         {
             File.Delete(_tempPatchPath);
             _tempPatchPath = string.Empty;
@@ -246,7 +246,7 @@ public class NonsensicalPatchReader
 
             var newBlock = new PatchBlock(patchType, path);
 
-            MissionStateChanged?.Invoke(new MissionState("应用补丁", true, patchStream.Position, _currentMissionMaxSize));
+            MissionStateChanged?.Invoke(new MissionState("应用补丁", patchStream.Position, _currentMissionMaxSize));
             switch (patchType)
             {
                 case BlockType.RemoveFile:
@@ -311,7 +311,7 @@ public class NonsensicalPatchReader
             {
                 MissionStateChanged?.Invoke(new MissionState("读取本地补丁文件"));
                 patchStream = File.OpenRead(_patchUrl);
-                _currentMissionMaxSize = new FileInfo(_patchUrl).Length; 
+                _currentMissionMaxSize = new FileInfo(_patchUrl).Length;
             }
             catch (Exception e)
             {
@@ -333,8 +333,8 @@ public class NonsensicalPatchReader
 
             _tempPatchPath = Tools.GetTempFilePath();
 
-            using (var file=File.Create(_tempPatchPath)) 
-            using (var download = await response.Content.ReadAsStreamAsync()) 
+            using (var file = File.Create(_tempPatchPath))
+            using (var download = await response.Content.ReadAsStreamAsync())
             {
                 var buffer = new byte[65536];
 
@@ -347,7 +347,7 @@ public class NonsensicalPatchReader
                     await file.WriteAsync(buffer, 0, bytesRead).ConfigureAwait(false);
                     totalBytesRead += bytesRead;
 
-                    MissionStateChanged?.Invoke(new MissionState("下载补丁",true, totalBytesRead, _currentMissionMaxSize));
+                    MissionStateChanged?.Invoke(new MissionState("下载补丁", totalBytesRead, _currentMissionMaxSize));
                 }
                 file.Flush();
                 file.Close();
@@ -457,7 +457,7 @@ public class NonsensicalPatchReader
                 await destination.FlushAsync();
                 copying = false;
             }
-            MissionStateChanged?.Invoke(new MissionState("应用补丁", true, source.Position, _currentMissionMaxSize));
+            MissionStateChanged?.Invoke(new MissionState("应用补丁", source.Position, _currentMissionMaxSize));
         }
     }
 
