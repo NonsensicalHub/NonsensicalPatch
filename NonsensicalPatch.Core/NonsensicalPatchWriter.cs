@@ -19,6 +19,10 @@ namespace NonsensicalPatch.Core;
  * pathUTF8Bytes    x
  * [dataLength]     8 or 0
  * [data]           y or 0
+ *
+ * MoveFile / MoveFolder 没有 data，主路径是新路径，后面再写：
+ * oldPathLength    2
+ * oldPathUTF8Bytes y
  * 
  * File:
  * Head             38
@@ -45,6 +49,8 @@ public class NonsensicalPatchWriter
     private byte[] _modifyFile = [2];
     private byte[] _removeFolder = [3];
     private byte[] _createFolder = [4];
+    private byte[] _moveFile = [5];
+    private byte[] _moveFolder = [6];
 
     private int _runningCount = 0;
     private int _blockCount = 0;
@@ -113,8 +119,10 @@ public class NonsensicalPatchWriter
 
         _runningCount = 0;
         ErrorMessage.Clear();
-        _oldRootPathLength = _oldRootPath.Length + 1;
-        _newRootPathLength = _newRootPath.Length + 1;
+        _oldRootPath = new DirectoryInfo(_oldRootPath).FullName;
+        _newRootPath = new DirectoryInfo(_newRootPath).FullName;
+        _oldRootPathLength = TreeDiff.RootPrefixLength(_oldRootPath);
+        _newRootPathLength = TreeDiff.RootPrefixLength(_newRootPath);
 
         long startPos = _output.Position;
 
@@ -151,181 +159,61 @@ public class NonsensicalPatchWriter
 
     private void StartDiff()
     {
-        Queue<DirectoryInfo> oldDirs = new Queue<DirectoryInfo>();
-        oldDirs.Enqueue(new DirectoryInfo(_oldRootPath));
-        Queue<DirectoryInfo> newDirs = new Queue<DirectoryInfo>();
-        newDirs.Enqueue(new DirectoryInfo(_newRootPath));
-
-        while (oldDirs.Count > 0)
+        try
         {
-            var oldDir = oldDirs.Dequeue();
-            var newDir = newDirs.Dequeue();
-
-            DiffFile(oldDir.EnumerateFiles().ToList(), newDir.EnumerateFiles().ToList());
-            if (HasError)
-            {
-                return;
-            }
-
-            var oldChildDirs = oldDir.EnumerateDirectories().ToList();
-            var newChildDirs = newDir.EnumerateDirectories().ToList();
-            DiffDir(oldChildDirs, newChildDirs);
-            if (HasError)
-            {
-                return;
-            }
-
-            foreach (var item in oldChildDirs)
-            {
-                oldDirs.Enqueue(item);
-            }
-            foreach (var item in newChildDirs)
-            {
-                newDirs.Enqueue(item);
-            }
+            DiffPlan plan = TreeDiff.Build(_oldRootPath, _newRootPath);
+            WritePlan(plan);
         }
-        _runningCount--;
-    }
-
-    private void DiffFile(List<FileInfo> olfFiles, List<FileInfo> newFiles)
-    {
-        List<string> newFileNames = new List<string>();
-
-        foreach (var item in newFiles)
+        catch (Exception e)
         {
-            newFileNames.Add(item.Name);
+            AddError(e.ToString());
         }
-
-        for (int i = 0; i < olfFiles.Count; i++)
+        finally
         {
-            if (newFileNames.Contains(olfFiles[i].Name))
-            {
-                int j = newFileNames.IndexOf(olfFiles[i].Name);
-                var oldFile = olfFiles[i];
-                var newFile = newFiles[j];
-                _runningCount++;
-                Thread thread = new Thread(() => CompareFile(oldFile, newFile));
-                thread.Start();
-
-                olfFiles.RemoveAt(i);
-                newFileNames.RemoveAt(j);
-                newFiles.RemoveAt(j);
-                i--;
-            }
-        }
-
-        foreach (var item in olfFiles)
-        {
-            try
-            {
-                WriteTypeAndPathAsync(_removeFile, item.FullName.Substring(_oldRootPathLength));
-            }
-            catch (Exception e)
-            {
-                AddError(e.ToString());
-            }
-        }
-
-        foreach (var item in newFiles)
-        {
-            WriteCreateFileAsync(item);
+            _runningCount--;
         }
     }
 
-    private void DiffDir(List<DirectoryInfo> olfDirs, List<DirectoryInfo> newDirs)
+    private void WritePlan(DiffPlan plan)
     {
-        List<string> newDirNames = new List<string>();
-
-        HashSet<int> oldSameIndex = new HashSet<int>();
-        HashSet<int> newSameIndex = new HashSet<int>();
-
-        //找到相同名称的文件
-
-        foreach (var item in newDirs)
+        foreach (string relative in plan.EarlyRemoveFiles)
         {
-            newDirNames.Add(item.Name);
+            Await(DoWriteTypeAndPathAsync(_removeFile, relative));
+        }
+        foreach (string relative in plan.CreateFolders)
+        {
+            Await(DoWriteTypeAndPathAsync(_createFolder, relative));
+        }
+        foreach (var move in plan.FolderMoves)
+        {
+            Await(DoWriteMoveAsync(_moveFolder, move.NewRelative, move.OldRelative));
+        }
+        foreach (var move in plan.FileMoves)
+        {
+            Await(DoWriteMoveAsync(_moveFile, move.NewRelative, move.OldRelative));
+        }
+        foreach (string relative in plan.RemoveFiles)
+        {
+            Await(DoWriteTypeAndPathAsync(_removeFile, relative));
+        }
+        foreach (string relative in plan.RemoveFolders)
+        {
+            Await(DoWriteTypeAndPathAsync(_removeFolder, relative));
         }
 
-        for (int i = 0; i < olfDirs.Count; i++)
+        foreach (var modify in plan.Modifies)
         {
-            if (newDirNames.Contains(olfDirs[i].Name))
-            {
-                int j = newDirNames.IndexOf(olfDirs[i].Name);
-
-                oldSameIndex.Add(i);
-                newSameIndex.Add(j);
-            }
+            WriteModityFileAsync(modify.OldFullPath, modify.NewFullPath);
         }
-
-        //旧文件夹中没有相同名称的文件夹代表新版本被移除的文件夹
-
-        for (int i = olfDirs.Count - 1; i >= 0; i--)
+        foreach (string fullPath in plan.CreateFiles)
         {
-            if (oldSameIndex.Contains(i) == false)
-            {
-                WriteTypeAndPathAsync(_removeFolder, olfDirs[i].FullName.Substring(_oldRootPathLength));
-
-                olfDirs.RemoveAt(i);
-            }
+            WriteCreateFileAsync(new FileInfo(fullPath));
         }
-
-        //新文件夹中没有相同名称的文件夹代表新版本新增的文件夹
-
-        for (int i = newDirs.Count - 1; i >= 0; i--)
-        {
-            if (newSameIndex.Contains(i) == false)
-            {
-
-                try
-                {
-                    WriteCreateFolderAsync(newDirs[i]);
-                }
-                catch (Exception)
-                {
-                    ErrorMessage.Add($"无法压缩文件夹：{newDirs[i].FullName}");
-
-                    return;
-                }
-
-                newDirs.RemoveAt(i);
-            }
-        }
-
-        //去掉被去除的和新增的文件夹，剩余相同名称的文件夹进入后续循环再做判断
     }
 
-    private async void CompareFile(FileInfo file1, FileInfo file2)
+    private static void Await(Task task)
     {
-        bool flag = false;
-        if (file1.Length != file2.Length)
-        {
-            flag = true;
-        }
-        else
-        {
-            const int BYTES_TO_READ = 1024 * 10;
-
-            using (FileStream fs1 = file1.Open(FileMode.Open, FileAccess.Read, FileShare.Read))
-            using (FileStream fs2 = file2.Open(FileMode.Open, FileAccess.Read, FileShare.Read))
-            {
-                byte[] one = new byte[BYTES_TO_READ];
-                byte[] two = new byte[BYTES_TO_READ];
-                while (true)
-                {
-                    int len1 = await fs1.ReadAsync(one, 0, BYTES_TO_READ);
-                    int len2 = await fs2.ReadAsync(two, 0, BYTES_TO_READ);
-                    if (!((ReadOnlySpan<byte>)one).SequenceEqual((ReadOnlySpan<byte>)two)) { flag = true; break; }
-                    if (len1 == 0 || len2 == 0) break;  // 有文件读取到了末尾,退出while循环
-                }
-            }
-        }
-
-        if (flag)
-        {
-            WriteModityFileAsync(file1.FullName, file2.FullName);
-        }
-
-        _runningCount--;
+        task.GetAwaiter().GetResult();
     }
 
     private async void WriteModityFileAsync(string oldFilePath, string newFilePath)
@@ -397,36 +285,6 @@ public class NonsensicalPatchWriter
         _runningCount--;
     }
 
-    private async void WriteCreateFolderAsync(DirectoryInfo directoryInfo)
-    {
-        _runningCount++;
-        Queue<DirectoryInfo> dirs = new Queue<DirectoryInfo>();
-        dirs.Enqueue(directoryInfo);
-
-        while (dirs.Count > 0)
-        {
-            var dir = dirs.Dequeue();
-            await DoWriteTypeAndPathAsync(_createFolder, dir.FullName.Substring(_newRootPathLength));      //此处等待以保证创建文件夹操作在创建文件之前
-
-            foreach (var item in dir.EnumerateFiles())
-            {
-                WriteCreateFileAsync(item);
-            }
-            foreach (var item in dir.EnumerateDirectories())
-            {
-                dirs.Enqueue(item);
-            }
-        }
-        _runningCount--;
-    }
-
-    private async void WriteTypeAndPathAsync(byte[] typeArray, string relativePath)
-    {
-        _runningCount++;
-        await DoWriteTypeAndPathAsync(typeArray, relativePath);
-        _runningCount--;
-    }
-
     private async Task DoWriteHead()
     {
         await _writeLock.WaitAsync();
@@ -436,6 +294,42 @@ public class NonsensicalPatchWriter
             await _output.WriteAsync([BasicInfo.PatchVersion, (byte)_compressType], 0, 2);
             await _output.WriteAsync(new byte[16], 0, 16);   //预留MD5校验码空间
             await _output.WriteAsync(new byte[4], 0, 4);   //预留块数量空间
+        }
+        finally
+        {
+            _writeLock.Release();
+        }
+    }
+
+    private async Task DoWriteMoveAsync(byte[] typeArray, string newRelativePath, string oldRelativePath)
+    {
+        var newBytes = Encoding.UTF8.GetBytes(newRelativePath);
+        var oldBytes = Encoding.UTF8.GetBytes(oldRelativePath);
+        if (newBytes.Length > short.MaxValue || oldBytes.Length > short.MaxValue)
+        {
+            throw new InvalidOperationException($"路径过长：{oldRelativePath} -> {newRelativePath}");
+        }
+
+        await _writeLock.WaitAsync();
+        try
+        {
+            _blockCount++;
+
+            var newLength = (short)newBytes.Length;
+            var oldLength = (short)oldBytes.Length;
+            Logger.Instance.Log($"{_output.Position} | {(BlockType)typeArray[0]} | {oldRelativePath} -> {newRelativePath}");
+
+            await _output.WriteAsync(typeArray, 0, 1);
+            await _output.WriteAsync(BitConverter.GetBytes(newLength), 0, 2);
+            await _output.WriteAsync(newBytes, 0, newBytes.Length);
+            await _output.WriteAsync(BitConverter.GetBytes(oldLength), 0, 2);
+            await _output.WriteAsync(oldBytes, 0, oldBytes.Length);
+
+            _md5.TransformBlock(typeArray, 0, 1, null, 0);
+            _md5.TransformBlock(BitConverter.GetBytes(newLength), 0, 2, null, 0);
+            _md5.TransformBlock(newBytes, 0, newBytes.Length, null, 0);
+            _md5.TransformBlock(BitConverter.GetBytes(oldLength), 0, 2, null, 0);
+            _md5.TransformBlock(oldBytes, 0, oldBytes.Length, null, 0);
         }
         finally
         {

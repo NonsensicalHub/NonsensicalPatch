@@ -13,6 +13,8 @@ public enum BlockType
     ModifyFile = 2, //修改文件
     RemoveFolder = 3,  //移除文件夹
     CreateFolder = 4,  //创建文件夹
+    MoveFile = 5, //移动文件。主路径是新路径，块末尾另有旧路径
+    MoveFolder = 6, //移动文件夹。主路径是新路径，块末尾另有旧路径
 }
 
 public enum CompressType

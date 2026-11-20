@@ -13,6 +13,7 @@ public class PatchBlock
 {
     public BlockType PatchType;
     public string Path;
+    public string? FromPath;
     public long DataSize;
 
     public PatchBlock(BlockType patchType, string path)

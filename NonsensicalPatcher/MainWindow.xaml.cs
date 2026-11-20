@@ -360,7 +360,15 @@ public partial class MainWindow : Window
 
             for (int i = 0; i < v.Blocks.Count; i++)
             {
-                AppendMessage($"块{i + 1} | 类型:{v.Blocks[i].PatchType} | 路径:{v.Blocks[i].Path} | 大小:{v.Blocks[i].DataSize}");
+                var block = v.Blocks[i];
+                if (string.IsNullOrEmpty(block.FromPath))
+                {
+                    AppendMessage($"块{i + 1} | 类型:{block.PatchType} | 路径:{block.Path} | 大小:{block.DataSize}");
+                }
+                else
+                {
+                    AppendMessage($"块{i + 1} | 类型:{block.PatchType} | 来源:{block.FromPath} | 路径:{block.Path} | 大小:{block.DataSize}");
+                }
             }
         }
         AppendMessage("补丁信息读取完毕");

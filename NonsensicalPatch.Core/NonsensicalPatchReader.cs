@@ -19,6 +19,10 @@ namespace NonsensicalPatch.Core;
  * pathUTF8Bytes    x
  * [dataLength]     8 or 0
  * [data]           y or 0
+ *
+ * MoveFile / MoveFolder 没有 data，主路径是新路径，后面再写：
+ * oldPathLength    2
+ * oldPathUTF8Bytes y
  * 
  * File:
  * Head             38
@@ -102,8 +106,14 @@ public class NonsensicalPatchReader
                 short pathLength = reader.ReadInt16();
                 byte[] pathBytes = reader.ReadBytes(pathLength);
                 string path = Encoding.UTF8.GetString(pathBytes);
+                string? fromPath = null;
+                if (patchType is BlockType.MoveFile or BlockType.MoveFolder)
+                {
+                    fromPath = ReadExtraPath(reader);
+                }
 
                 var newBlock = new PatchBlock(patchType, path);
+                newBlock.FromPath = fromPath;
 
                 switch (patchType)
                 {
@@ -240,11 +250,17 @@ public class NonsensicalPatchReader
             short pathLength = reader.ReadInt16();
             byte[] pathBytes = reader.ReadBytes(pathLength);
             string path = Encoding.UTF8.GetString(pathBytes);
+            string? fromPath = null;
+            if (patchType is BlockType.MoveFile or BlockType.MoveFolder)
+            {
+                fromPath = ReadExtraPath(reader);
+            }
             string fullPath = Path.Combine(_targetDirPath, path);
 
-            Logger.Instance.Log($"{patchType} | {path}");
+            Logger.Instance.Log(fromPath == null ? $"{patchType} | {path}" : $"{patchType} | {fromPath} -> {path}");
 
             var newBlock = new PatchBlock(patchType, path);
+            newBlock.FromPath = fromPath;
 
             MissionStateChanged?.Invoke(new MissionState("应用补丁", patchStream.Position, _currentMissionMaxSize));
             switch (patchType)
@@ -294,8 +310,31 @@ public class NonsensicalPatchReader
                         Directory.CreateDirectory(fullPath);
                     }
                     break;
-                default:
+                case BlockType.MoveFile:
+                    try
+                    {
+                        MovePath(Path.Combine(_targetDirPath, fromPath!), fullPath, true);
+                    }
+                    catch (Exception e)
+                    {
+                        AddError($"无法移动文件：{fromPath} -> {path},{e.Message}");
+                        return;
+                    }
                     break;
+                case BlockType.MoveFolder:
+                    try
+                    {
+                        MovePath(Path.Combine(_targetDirPath, fromPath!), fullPath, false);
+                    }
+                    catch (Exception e)
+                    {
+                        AddError($"无法移动文件夹：{fromPath} -> {path},{e.Message}");
+                        return;
+                    }
+                    break;
+                default:
+                    AddError($"未知补丁块：{patchType}");
+                    return;
             }
             PatchInfo.Blocks.Add(newBlock);
         }
@@ -435,6 +474,47 @@ public class NonsensicalPatchReader
         else
         {
             return null;
+        }
+    }
+
+    private static string ReadExtraPath(BinaryReader reader)
+    {
+        short pathLength = reader.ReadInt16();
+        return Encoding.UTF8.GetString(reader.ReadBytes(pathLength));
+    }
+
+    private static void MovePath(string source, string dest, bool file)
+    {
+        string? parent = Path.GetDirectoryName(dest);
+        if (string.IsNullOrEmpty(parent) == false)
+        {
+            Directory.CreateDirectory(parent);
+        }
+
+        if (string.Equals(source, dest, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(source, dest, StringComparison.Ordinal) == false)
+        {
+            string temp = Path.Combine(parent ?? Path.GetDirectoryName(source)!, Guid.NewGuid().ToString("N") + ".move");
+            if (file)
+            {
+                File.Move(source, temp);
+                File.Move(temp, dest);
+            }
+            else
+            {
+                Directory.Move(source, temp);
+                Directory.Move(temp, dest);
+            }
+            return;
+        }
+
+        if (file)
+        {
+            File.Move(source, dest);
+        }
+        else
+        {
+            Directory.Move(source, dest);
         }
     }
 
